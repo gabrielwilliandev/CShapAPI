@@ -1,0 +1,530 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" ng-app="financeApp">
+<head>
+    <meta charset="UTF-8">
+    <title>Minhas Finanças</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { background-color: #f8f9fa; }
+        .card-dashboard { border: none; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .bg-gradient-primary { background: linear-gradient(45deg, #4e73df, #224abe); color: white; }
+        .bg-gradient-success { background: linear-gradient(45deg, #1cc88a, #13855c); color: white; }
+        .bg-gradient-danger { background: linear-gradient(45deg, #e74a3b, #be2617); color: white; }
+        .navbar-brand { font-weight: bold; }
+        .cursor-pointer { cursor: pointer; }
+        .nav-link { cursor: pointer; }
+    </style>
+</head>
+<body ng-controller="MainController">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4" ng-if="auth.isLoggedIn()">
+        <div class="container">
+            <a class="navbar-brand" href="#!/dashboard">FinanceApp</a>
+            <div class="d-flex">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="#!/dashboard">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#!/transacoes">Transações</a></li>
+                    <li class="nav-item" ng-if="auth.isAdmin()">
+                        <a class="nav-link" href="#!/admin">Admin</a>
+                    </li> 
+                    <li class="nav-item"><a class="nav-link" href="#" ng-click="logout()">Sair</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div ng-view></div>
+    </div>
+
+    <script type="text/ng-template" id="login.html">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                        <h3 class="text-center mb-4">Login</h3>
+                        <div class="alert alert-danger" ng-if="error">{{ error }}</div>
+                        <form ng-submit="login()">
+                            <div class="mb-3">
+                                <label>Email</label>
+                                <input type="email" class="form-control" ng-model="user.email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Senha</label>
+                                <input type="password" class="form-control" ng-model="user.password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Entrar</button>
+                        </form>
+                        <div class="text-center mt-3">
+                            <a href="#!/register">Criar conta</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/ng-template" id="register.html">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                        <h3 class="text-center mb-4">Criar Conta</h3>
+                        <div class="alert alert-danger" ng-if="error">{{ error }}</div>
+                        <form ng-submit="register()">
+                            <div class="mb-3">
+                                <label>Nome de Usuário</label>
+                                <input type="text" class="form-control" ng-model="user.username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Email</label>
+                                <input type="email" class="form-control" ng-model="user.email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Senha</label>
+                                <input type="password" class="form-control" ng-model="user.password" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Registrar</button>
+                        </form>
+                        <div class="text-center mt-3">
+                            <a href="#!/login">Já tenho conta</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/ng-template" id="dashboard.html">
+        <h2 class="mb-4">Dashboard Financeiro</h2>
+        
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card card-dashboard bg-gradient-success p-3">
+                    <h5>Receitas</h5>
+                    <h3>{{ stats.totalReceitas | currency:'R$ ' }}</h3>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-dashboard bg-gradient-danger p-3">
+                    <h5>Despesas</h5>
+                    <h3>{{ stats.totalDespesas | currency:'R$ ' }}</h3>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-dashboard bg-gradient-primary p-3">
+                    <h5>Saldo Atual</h5>
+                    <h3>{{ stats.saldo | currency:'R$ ' }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Gastos por Categoria</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Categoria</th>
+                                    <th>Valor</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="cat in stats.gastosPorCategoria">
+                                    <td>{{ cat.categoryName }}</td>
+                                    <td>{{ cat.totalAmount | currency:'R$ ' }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="me-2">{{ cat.percentage | number:1 }}%</span>
+                                            <div class="progress w-100" style="height: 10px;">
+                                                <div class="progress-bar" role="progressbar" style="width: {{cat.percentage}}%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr ng-if="stats.gastosPorCategoria.length == 0">
+                                    <td colspan="3" class="text-center text-muted">Nenhuma despesa neste mês.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/ng-template" id="transacoes.html">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Transações</h2>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTransacao" ng-click="prepareCreate()">
+                <i class="fas fa-plus"></i> Nova Transação
+            </button>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="t in transacoes">
+                                <td>{{ t.date | date:'dd/MM/yyyy' }}</td>
+                                <td>{{ t.description }}</td>
+                                <td><span class="badge bg-secondary">{{ t.categoryName }}</span></td>
+                                <td>
+                                    <span class="badge" ng-class="{'bg-success': t.type == 'Receita' || t.type == 'Entrada', 'bg-danger': t.type == 'Despesa' || t.type == 'Saída'}">
+                                        {{ t.type }}
+                                    </span>
+                                </td>
+                                <td ng-class="{'text-success': t.type == 'Receita' || t.type == 'Entrada', 'text-danger': t.type == 'Despesa' || t.type == 'Saída'}">
+                                    {{ t.amount | currency:'R$ ' }}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" ng-click="deletar(t.id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalTransacao" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nova Transação</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form ng-submit="salvar()">
+                            <div class="mb-3">
+                                <label>Descrição</label>
+                                <input type="text" class="form-control" ng-model="novaTransacao.description" required>
+                            </div>
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label>Valor</label>
+                                    <input type="number" step="0.01" class="form-control" ng-model="novaTransacao.amount" required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Data</label>
+                                    <input type="date" class="form-control" ng-model="novaTransacao.date" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label>Tipo</label>
+                                <select class="form-select" ng-model="novaTransacao.type" required>
+                                    <option value="Entrada">Entrada</option>
+                                    <option value="Saída">Saída</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label>Categoria</label>
+                                <select class="form-select" ng-model="novaTransacao.categoryId" 
+                                        ng-options="c.id as c.name for c in categorias" required>
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Salvar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular-route.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        var app = angular.module('financeApp', ['ngRoute']);
+        
+        // Define API URL como constante para injeção limpa
+        app.constant('API_URL', 'https://localhost:7019/api');
+
+        // --- Configuração de Rotas ---
+        app.config(function($routeProvider) {
+            $routeProvider
+            .when('/login', { templateUrl: 'login.html', controller: 'LoginCtrl' })
+            .when('/register', { templateUrl: 'register.html', controller: 'RegisterCtrl' })
+            .when('/dashboard', { templateUrl: 'dashboard.html', controller: 'DashboardCtrl', resolve: { auth: checkAuth } })
+            .when('/transacoes', { templateUrl: 'transacoes.html', controller: 'TransacaoCtrl', resolve: { auth: checkAuth } })
+            .when('/admin', { 
+                templateUrl: 'admin.html', // Deve existir fisicamente na pasta
+                controller: 'AdminCtrl', 
+                resolve: { auth: checkAuth } 
+            })
+            .otherwise({ redirectTo: '/login' });
+        });
+
+        // Função para proteger rotas
+        var checkAuth = function($q, $location, AuthService) {
+            if (AuthService.isLoggedIn()) {
+                return true;
+            } else {
+                $location.path('/login');
+                return $q.reject('Not Authenticated');
+            }
+        };
+
+        // --- Interceptor JWT ---
+        app.factory('AuthInterceptor', function($q, $window) {
+            return {
+                request: function(config) {
+                    config.headers = config.headers || {};
+                    var token = $window.localStorage.getItem('token');
+                    if (token) {
+                        config.headers.Authorization = 'Bearer ' + token;
+                    }
+                    return config;
+                },
+                responseError: function(response) {
+                    if (response.status === 401) {
+                        $window.localStorage.removeItem('token');
+                        $window.location.href = '#!/login';
+                    }
+                    return $q.reject(response);
+                }
+            };
+        });
+
+        app.config(function($httpProvider) {
+            $httpProvider.interceptors.push('AuthInterceptor');
+        });
+
+        // --- Serviço de Autenticação ---
+        app.factory('AuthService', function($window) {
+            return {
+                saveToken: function (token) { $window.localStorage.setItem('token', token); },
+                getToken: function () { return $window.localStorage.getItem('token'); },
+                logout: function () { $window.localStorage.removeItem('token'); },
+                isLoggedIn: function () { return !!this.getToken(); },
+                isAdmin: function () {
+                    var token = this.getToken();
+                    if (!token) return false;
+                    try {
+                        var payload = JSON.parse(atob(token.split('.')[1]));
+                        // Verifica ambas as claims possíveis para role
+                        return payload.role === 'Admin' || payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] === 'Admin';
+                    } catch (e) {
+                        return false;
+                    }
+                }
+            };
+        });
+
+        // --- Controladores ---
+
+        app.controller('MainController', function($scope, AuthService, $location) {
+            $scope.auth = AuthService;
+            $scope.logout = function() {
+                AuthService.logout();
+                $location.path('/login');
+            };
+        });
+
+        app.controller('LoginCtrl', function($scope, $http, AuthService, $location, API_URL) {
+            $scope.user = {};
+            $scope.login = function() {
+                $http.post(API_URL + '/auth/login', $scope.user)
+                .then(function(response) {
+                    AuthService.saveToken(response.data.token);
+                    $location.path('/dashboard');
+                }, function(err) {
+                    $scope.error = err.data.message || "Erro ao realizar login";
+                });
+            };
+        });
+
+        app.controller('RegisterCtrl', function($scope, $http, $location, API_URL) {
+            $scope.user = {};
+            $scope.register = function() {
+                $http.post(API_URL + '/auth/register', $scope.user)
+                .then(function(response) {
+                    alert('Usuário criado com sucesso!');
+                    $location.path('/login');
+                }, function(err) {
+                    $scope.error = err.data.message || "Erro ao registrar";
+                });
+            };
+        });
+
+        app.controller('DashboardCtrl', function($scope, $http, API_URL) {
+            $scope.stats = {};
+            function loadDashboard() {
+                $http.get(API_URL + '/dasboard') // Verifique se o endpoint é 'dasboard' ou 'dashboard'
+                .then(function(response) {
+                    $scope.stats = response.data;
+                }, function(err) {
+                    console.error("Erro ao carregar dashboard", err);
+                });
+            }
+            loadDashboard();
+        });
+
+        app.controller('TransacaoCtrl', function($scope, $http, API_URL) {
+            $scope.transacoes = [];
+            $scope.categorias = [];
+            $scope.novaTransacao = {};
+
+            function loadTransacoes() {
+                $http.get(API_URL + '/transacao')
+                .then(function(res) {
+                    $scope.transacoes = res.data;
+                });
+            }
+
+            function loadCategorias() {
+                $http.get(API_URL + '/category')
+                .then(function(res) {
+                    $scope.categorias = res.data;
+                });
+            }
+
+            $scope.prepareCreate = function() {
+                $scope.novaTransacao = { date: new Date(), type: 'Saída' };
+                loadCategorias();
+            };
+
+            $scope.salvar = function() {
+                $http.post(API_URL + '/transacao', $scope.novaTransacao)
+                .then(function(res) {
+                    var modalEl = document.getElementById('modalTransacao');
+                    var modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                    loadTransacoes();
+                    $scope.novaTransacao = {};
+                }, function(err) {
+                    let msg = "Erro desconhecido";
+                    if (err.data) {
+                        if (typeof err.data === 'string') {
+                            msg = err.data;
+                        } else if (err.data.message) {
+                            msg = err.data.message;
+                        } else if (Array.isArray(err.data)) {
+                            msg = err.data.map(e => e.errorMessage).join("\n");
+                        } else if (err.data.errors) {
+                            msg = JSON.stringify(err.data.errors);
+                        }
+                    }
+                    alert("Erro ao salvar:\n" + msg);
+                });
+            };
+
+            $scope.deletar = function(id) {
+                if(confirm("Tem certeza?")) {
+                    $http.delete(API_URL + '/transacao/' + id)
+                    .then(loadTransacoes);
+                }
+            };
+
+            loadTransacoes();
+        });
+
+        // --- CONTROLLER ADMIN CORRIGIDO ---
+        app.controller('AdminCtrl', function ($scope, $http, API_URL) {
+            
+            // 1. Controle de Abas (igual ao admin.html)
+            $scope.activeTab = 'transactions'; // Aba padrão
+            
+            $scope.setActiveTab = function(tabName) {
+                $scope.activeTab = tabName;
+                
+                // Recarrega os dados ao trocar de aba para garantir atualização
+                if(tabName === 'transactions') $scope.loadTodasTransacoes();
+                if(tabName === 'users') $scope.loadUsuarios();
+                if(tabName === 'categories') $scope.loadCategorias();
+            };
+
+            // 2. Dados (Nomes compatíveis com admin.html)
+            $scope.globalTransactions = [];
+            $scope.users = [];
+            $scope.categories = [];
+            $scope.newCategoryName = "";
+
+            // --- CATEGORIAS ---
+            $scope.loadCategorias = function () {
+                $http.get(API_URL + '/category').then(function (res) {
+                    $scope.categories = res.data;
+                }, function (err) {
+                    console.error("Erro ao carregar categorias", err);
+                });
+            };
+
+            $scope.createCategory = function () {
+                if (!$scope.newCategoryName) {
+                    alert("Digite o nome da categoria!");
+                    return;
+                }
+                
+                var dto = { Name: $scope.newCategoryName };
+                
+                $http.post(API_URL + '/category', dto)
+                    .then(function (res) {
+                        alert("Categoria criada com sucesso!");
+                        $scope.newCategoryName = ""; // Limpa campo
+                        $scope.loadCategorias(); // Recarrega lista
+                    }, function (err) {
+                        var msg = err.data && err.data.message ? err.data.message : JSON.stringify(err.data);
+                        alert("Erro ao criar categoria: " + msg);
+                    });
+            };
+
+            $scope.deleteCategory = function (id) {
+                if (confirm("Tem certeza que deseja excluir esta categoria?")) {
+                    $http.delete(API_URL + '/category/' + id)
+                        .then(function () {
+                            $scope.loadCategorias();
+                        }, function (err) {
+                            alert("Erro ao deletar (ela pode estar em uso em transações).");
+                        });
+                }
+            };
+
+            // --- USUÁRIOS ---
+            $scope.loadUsuarios = function () {
+                $http.get(API_URL + '/user').then(function (res) {
+                    $scope.users = res.data;
+                }, function (err) {
+                    console.error("Erro ao carregar usuários", err);
+                });
+            };
+
+            // --- TRANSAÇÕES GLOBAIS ---
+            $scope.loadTodasTransacoes = function () {
+                $http.get(API_URL + '/transacao/admin/all').then(function (res) {
+                    $scope.globalTransactions = res.data;
+                }, function (err) {
+                    console.error("Erro ao carregar transações globais", err);
+                });
+            };
+
+            // Inicialização: carrega os dados iniciais
+            $scope.loadTodasTransacoes();
+            $scope.loadUsuarios();
+            $scope.loadCategorias();
+        });
+
+    </script>
+</body>
+</html>
