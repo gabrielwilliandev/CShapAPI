@@ -66,6 +66,26 @@ Acesse:\
   PUT      `/api/itens/{id}`   Atualiza um item
   DELETE   `/api/itens/{id}`   Exclui um item
 
+## 🌐 Como abrir o HTML em um servidor local no VS Code
+
+Para visualizar seu arquivo **HTML** rodando em um servidor local no Visual Studio Code, siga estes passos:
+
+1. Abra o projeto no **VS Code**.
+2. Instale a extensão **Live Server** (por Ritwick Dey):
+   - Vá em **Extensions (Ctrl+Shift+X)**  
+   - Pesquise por **Live Server**  
+   - Clique em **Install**
+3. Abra o arquivo HTML que deseja visualizar.
+4. Clique com o botão direito no arquivo e selecione:
+   **“Open with Live Server”**
+5. O navegador será aberto automaticamente em um endereço como:
+```
+http://127.0.0.1:5500/
+```
+6. Sempre que você alterar e salvar o arquivo, a página será recarregada automaticamente.
+
+Pronto! Seu HTML está rodando localmente via servidor no VS Code.
+
 ## 🧪 Testes
 
 ``` bash
