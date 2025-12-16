@@ -1,5 +1,4 @@
 using API.Configuration;
-using API.Data;
 using API.Services;
 using API.Validators;
 using FluentValidation;
@@ -18,6 +17,7 @@ var secretKey = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(c =>
 {
 c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
@@ -53,11 +53,6 @@ c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     });
 });
 
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("CnnString"))
-);
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -81,6 +76,7 @@ builder.Services.Configure<JwtOptions>(
 );
 
 builder.Services.AddSingleton<JwtService>();
+builder.Services.AddSingleton<FireStoreService>();
 
 
 

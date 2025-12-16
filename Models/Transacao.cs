@@ -1,21 +1,29 @@
-﻿namespace API.Models
+﻿using Google.Cloud.Firestore;
+
+namespace API.Models
 {
+    [FirestoreData]
     public class Transacao
     {
-        public int Id { get; set; }
+        [FirestoreDocumentId]
+        public string Id { get; set; }
+
+        [FirestoreProperty]
         public string? Description { get; set; }
+
+        [FirestoreProperty]
         public decimal Amount { get; set; }
+
+        [FirestoreProperty]
         public DateTime Date { get; set; }
+
+        [FirestoreProperty]
         public string? Type { get; set; }
 
+        [FirestoreProperty]
+        public string CategoryId { get; set; } // Referência por string
 
-        //Category
-        public int CategoryId { get; set; }
-        public Category? Category { get; set; }
-
-
-        //User
-        public int UserId { get; set; }
-        public User? User { get; set; }
+        [FirestoreProperty]
+        public string UserId { get; set; } // UID do Firebase Auth
     }
 }

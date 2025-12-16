@@ -1,189 +1,235 @@
-﻿using API.Data;
+﻿
 using API.DTOs;
 using API.Models;
+using Google.Cloud.Firestore;
 using Microsoft.EntityFrameworkCore;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using Query = Google.Cloud.Firestore.Query;
 
 namespace API.Services
 {
     public class TransacaoService : ITransacaoService
     {
-        private readonly AppDbContext _context;
-        public TransacaoService(AppDbContext context) 
+        private readonly FirestoreDb _firestoreDb;
+        private const string CollectionName = "Transactions";
+        public TransacaoService(FirestoreDb firestoreDb) 
         {
-            _context = context;
+            _firestoreDb = firestoreDb;
         }
 
-        public async Task<TransacaoResponseDto> CreateAsync(TransacaoCreateDto dto, int userId)
+        public async Task<TransacaoResponseDto> CreateAsync(TransacaoCreateDto dto, string userId)
         {
-            var transacao = new Transacao 
+
+            var collection = _firestoreDb.Collection(CollectionName);
+
+            var transacao = new Dictionary<string, object>
             {
-                Description = dto.Description,
-                Amount = dto.Amount,
-                Date = dto.Date,
-                Type = dto.Type,
-                CategoryId = dto.CategoryId,
-                UserId = userId
+                { "Description", dto.Description },
+                { "Amount", (double)dto.Amount }, // Cast para double (Firestore number)
+                { "Date", Timestamp.FromDateTime(dto.Date.ToUniversalTime()) },
+                { "Type", dto.Type },
+                { "CategoryId", dto.CategoryId },
+                { "UserId", userId }
             };
 
-            _context.Transactions.Add(transacao);
-            await _context.SaveChangesAsync();
+            DocumentReference docRef = await collection.AddAsync(transacao);
 
-            return await GetByIdAsync(transacao.Id, userId)
+            return await GetByIdAsync(docRef.Id, userId)
                    ?? throw new Exception("Erro inexperado ao criar transação.");
+
         }
 
-        public async Task<bool> DeleteAsync(int id, int userId)
+        public async Task<bool> DeleteAsync(string id, string userId)
         {
-            var transacao = await _context.Transactions
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-            if (transacao != null)
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot transacaoRef = await docRef.GetSnapshotAsync();
+
+            if(!transacaoRef.Exists || transacaoRef.GetValue<string>("UserId") != userId)
             {
-                _context.Transactions.Remove(transacao);
-                await _context.SaveChangesAsync();
-                return true;
+                return false;
             }
-            return false;
+            await docRef.DeleteAsync();
+            return true;
         }
 
-        public async Task<List<TransacaoResponseDto>> GetAllAsync(int userId, DateTime? dataInicio = null, DateTime? dataFim = null)
+        public async Task<List<TransacaoResponseDto>> GetAllAsync(string userId, DateTime? dataInicio = null, DateTime? dataFim = null)
         {
-            var query = _context.Transactions
-                                              .Include(t => t.Category)
-                                              .Include(t => t.User)
-                                              .Where(t => t.UserId == userId);
+            // 1. Referência da coleção
+            Query query = _firestoreDb.Collection(CollectionName).WhereEqualTo("UserId", userId);
 
-                                              if (dataInicio.HasValue)
-                                                {
-                                                    query = query.Where(t => t.Date >= dataInicio.Value);
-                                                }
-
-                                                // Se informou data de fim, filtra
-                                                if (dataFim.HasValue)
-                                                {
-                                                    query = query.Where(t => t.Date <= dataFim.Value);
-                                                }
-
-                                                // Ordena por data (mais recente primeiro é comum em finanças)
-                                                query = query.OrderByDescending(t => t.Date);
-
-                                                return await query
-                                                      .Select(t => new TransacaoResponseDto
-                                              {
-                                                  Id = t.Id,
-                                                  Description = t.Description,
-                                                  Amount = t.Amount,
-                                                  Date = t.Date,
-                                                  Type = t.Type,
-                                                  CategoryId = t.CategoryId,
-                                                  CategoryName = t.Category.Name,
-                                                  UserId = t.UserId,
-                                                  UserName = t.User.Username
-                                              }).ToListAsync();
-        }
-
-        public async Task<TransacaoResponseDto?> GetByIdAsync(int id, int userId)
-        {
-            var transacao = await _context.Transactions
-                                          .Include(t => t.Category)
-                                          .Include(t => t.User)
-                                          .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
-            if (transacao == null) return null;
-
-            return new TransacaoResponseDto
+            // 2. Filtros de Data (Garantindo UTC para o Firestore)
+            if (dataInicio.HasValue)
             {
-                Id = transacao.Id,
-                Description = transacao.Description,
-                Amount = transacao.Amount,
-                Date = transacao.Date,
-                Type = transacao.Type,
-                CategoryId = transacao.CategoryId,
-                CategoryName = transacao.Category.Name,
-                UserId = transacao.UserId,
-                UserName = transacao.User.Username
-            };
+                DateTime inicioUtc = DateTime.SpecifyKind(dataInicio.Value, DateTimeKind.Utc);
+                query = query.WhereGreaterThanOrEqualTo("Date", Timestamp.FromDateTime(inicioUtc));
+            }
+
+            if (dataFim.HasValue)
+            {
+                DateTime fimUtc = DateTime.SpecifyKind(dataFim.Value, DateTimeKind.Utc);
+                query = query.WhereLessThanOrEqualTo("Date", Timestamp.FromDateTime(fimUtc));
+            }
+
+            // 3. Ordenação (Requer índice composto se houver filtros de data)
+            query = query.OrderByDescending("Date");
+
+            // 4. Execução da busca
+            QuerySnapshot querySnapshot = await query.GetSnapshotAsync();
+
+            var transacoes = new List<TransacaoResponseDto>();
+
+            foreach (DocumentSnapshot document in querySnapshot.Documents)
+            {
+                if (document.Exists)
+                {
+                    transacoes.Add(new TransacaoResponseDto
+                    {
+                        Id = document.Id,
+                        Description = document.GetValue<string>("Description"),
+                        // O Firestore armazena como double, convertemos para decimal aqui
+                        Amount = document.ContainsField("Amount") ? Convert.ToDecimal(document.GetValue<double>("Amount")) : 0m,
+                        Date = document.GetValue<Timestamp>("Date").ToDateTime(),
+                        Type = document.GetValue<string>("Type"),
+                        CategoryId = document.GetValue<string>("CategoryId"),
+                        UserId = document.GetValue<string>("UserId")
+                    });
+                }
+            }
+
+            return transacoes;
         }
 
-        public async Task<TransacaoResponseDto?> UpdateAsync(int id, TransacaoUpdateDto dto, int userId)
+        public async Task<TransacaoResponseDto?> GetByIdAsync(string id, string userId)
         {
-            // CORREÇÃO: Busca a transação e *obrigatoriamente* verifica se pertence ao userId
-            var transacao = await _context.Transactions
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
 
-            if (transacao == null)
+            if (!snapshot.Exists || snapshot.GetValue<string>("UserId") != userId)
             {
-                // Retorna null se não for encontrado OU se a transação não for do usuário logado
                 return null;
             }
 
-            transacao.Description = dto.Description;
-            transacao.Amount = dto.Amount;
-            transacao.Date = dto.Date;
-            transacao.Type = dto.Type;
-            transacao.CategoryId = dto.CategoryId;
-            // Não altere transacao.UserId!
-
-            // O contexto rastreia a mudança, não é preciso o _context.Transactions.Update(transacao);
-            await _context.SaveChangesAsync();
-
-            return await GetByIdAsync(id, userId);
+            return await MapToResponseDto(snapshot);
+            
         }
 
-        public async Task<DashboardResponseDto> GetDashboardAsync(int userId, DateTime dataReferencia)
+        public async Task<TransacaoResponseDto?> UpdateAsync(string id, TransacaoUpdateDto dto, string userId)
         {
-            var inicioMes = new DateTime(dataReferencia.Year, dataReferencia.Month, 1);
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
+            if (!snapshot.Exists || snapshot.GetValue<string>("UserId") != userId)
+            {
+                return null;
+            }
+            var updates = new Dictionary<string, object>
+            {
+                { "Description", dto.Description },
+                { "Amount", (double)dto.Amount }, // Cast para double (Firestore number)
+                { "Date", Timestamp.FromDateTime(dto.Date.ToUniversalTime()) },
+                { "Type", dto.Type },
+                { "CategoryId", dto.CategoryId }
+            };
+            await docRef.UpdateAsync(updates);
+            return await GetByIdAsync(id, userId);
 
-            var fimMes = inicioMes.AddMonths(1).AddDays(-1).AddHours(23).AddMinutes(59).AddSeconds(59);
 
-            var transacoes = await _context.Transactions
-                                            .Include(t => t.Category)
-                                            .Where(t => t.UserId == userId
-                                            && t.Date >= inicioMes
-                                            && t.Date <= fimMes).ToListAsync();
+        }
+
+        public async Task<DashboardResponseDto> GetDashboardAsync(string userId, DateTime dataReferencia)
+        {
+            var inicioMes = new DateTime(dataReferencia.Year, dataReferencia.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var fimMes = inicioMes.AddMonths(1).AddTicks(-1);
+
+            var query = _firestoreDb.Collection(CollectionName)
+                .WhereEqualTo("UserId", userId)
+                .WhereGreaterThanOrEqualTo("Date", Timestamp.FromDateTime(inicioMes))
+                .WhereLessThanOrEqualTo("Date", Timestamp.FromDateTime(fimMes));
+
+            QuerySnapshot snapshot = await query.GetSnapshotAsync();
+
+            // Simulação de agregação em memória (Firestore não tem Sum/GroupBy nativo rico como SQL)
+            var transacoes = snapshot.Documents.Select(d => new {
+                Amount = d.GetValue<decimal>("Amount"),
+                Type = d.GetValue<string>("Type"),
+                CategoryName = "Carregando..." // Idealmente salvo no documento da transação
+            }).ToList();
 
             var totalReceitas = transacoes.Where(t => t.Type == "Entrada").Sum(t => t.Amount);
             var totalDespesas = transacoes.Where(t => t.Type == "Saída").Sum(t => t.Amount);
-            var saldo = totalReceitas - totalDespesas;
 
-            var categoriaStats = transacoes
-                                 .Where(t => t.Type == "Saída")
-                                 .GroupBy(t => t.Category.Name)
-                                 .Select(g => new CategoryStatDto
-                                 {
-                                     CategoryName = g.Key,
-                                     TotalAmount = g.Sum(t => t.Amount),
-                                     Percentage = totalDespesas > 0 ? (double)(g.Sum(t => t.Amount) / totalDespesas) * 100 : 0
-                                 })
-                                 .OrderByDescending(x => x.TotalAmount)
-                                 .ToList();
             return new DashboardResponseDto
             {
                 TotalReceitas = totalReceitas,
                 TotalDespesas = totalDespesas,
-                Saldo = saldo,
-                GastosPorCategoria = categoriaStats
+                Saldo = totalReceitas - totalDespesas
+                // GastosPorCategoria exigiria buscar nomes das categorias ou desnormalizar
             };
         }
-            public async Task<List<TransacaoResponseDto>> GetAllGlobalAsync()
+        public async Task<List<TransacaoResponseDto>> GetAllGlobalAsync()
+        {
+            // 1. Busca todas as transações ordenadas por data
+            Query query = _firestoreDb.Collection(CollectionName).OrderByDescending("Date");
+            QuerySnapshot querySnapshot = await query.GetSnapshotAsync();
+
+            var transacoes = new List<TransacaoResponseDto>();
+
+            // Caches simples para evitar buscar o mesmo Usuário ou Categoria várias vezes no loop
+            var categoryCache = new Dictionary<string, string>();
+            var userCache = new Dictionary<string, string>();
+
+            foreach (DocumentSnapshot document in querySnapshot.Documents)
             {
-            return await _context.Transactions
-                        .Include(t => t.Category)
-                        .Include(t => t.User) // Importante para saber de quem é
-                        .OrderByDescending(t => t.Date)
-                        .Select(t => new TransacaoResponseDto
-                        {
-                            Id = t.Id,
-                            Description = t.Description,
-                            Amount = t.Amount,
-                            Date = t.Date,
-                            Type = t.Type,
-                            CategoryId = t.CategoryId,
-                            CategoryName = t.Category.Name,
-                            UserId = t.UserId,
-                            UserName = t.User.Username // Mostra o nome do usuário
-                        }).ToListAsync();
+                var categoryId = document.GetValue<string>("CategoryId");
+                var userId = document.GetValue<string>("UserId");
+
+                // 2. Buscar Nome da Categoria (se não estiver no cache)
+                if (!string.IsNullOrEmpty(categoryId) && !categoryCache.ContainsKey(categoryId))
+                {
+                    var catSnap = await _firestoreDb.Collection("Categories").Document(categoryId).GetSnapshotAsync();
+                    categoryCache[categoryId] = catSnap.Exists ? catSnap.GetValue<string>("Name") : "Sem Categoria";
+                }
+
+                // 3. Buscar Nome do Usuário (se não estiver no cache)
+                if (!string.IsNullOrEmpty(userId) && !userCache.ContainsKey(userId))
+                {
+                    var userSnap = await _firestoreDb.Collection("Users").Document(userId).GetSnapshotAsync();
+                    userCache[userId] = userSnap.Exists ? userSnap.GetValue<string>("Username") : "Usuário Desconhecido";
+                }
+
+                transacoes.Add(new TransacaoResponseDto
+                {
+                    Id = document.Id,
+                    Description = document.GetValue<string>("Description"),
+                    Amount = Convert.ToDecimal(document.GetValue<double>("Amount")),
+                    Date = document.GetValue<Timestamp>("Date").ToDateTime(),
+                    Type = document.GetValue<string>("Type"),
+                    CategoryId = categoryId,
+                    CategoryName = categoryCache.GetValueOrDefault(categoryId),
+                    UserId = userId,
+                    UserName = userCache.GetValueOrDefault(userId)
+                });
             }
+
+            return transacoes;
+        }
+
+        private async Task<TransacaoResponseDto> MapToResponseDto(DocumentSnapshot doc)
+        {
+            var categoryId = doc.GetValue<string>("CategoryId");
+            // Nota: Em produção, o ideal é que o 'CategoryName' já esteja salvo na Transação 
+            // para evitar múltiplas chamadas ao banco (Desnormalização).
+
+            return new TransacaoResponseDto
+            {
+                Id = doc.Id,
+                Description = doc.GetValue<string>("Description"),
+                Amount = doc.GetValue<decimal>("Amount"),
+                Date = doc.GetValue<Timestamp>("Date").ToDateTime(),
+                Type = doc.GetValue<string>("Type"),
+                CategoryId = categoryId,
+                UserId = doc.GetValue<string>("UserId")
+            };
         }
     }
+}
 

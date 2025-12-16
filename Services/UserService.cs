@@ -1,6 +1,7 @@
-﻿using API.Data;
+﻿
 using API.DTOs;
 using API.Models;
+using Google.Cloud.Firestore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
@@ -10,11 +11,12 @@ namespace API.Services
 {
     public class UserService : IUserService
     {
-        private readonly AppDbContext _context;
+        private readonly FirestoreDb _firestoreDb;
+        private const string CollectionName = "Users";
 
-        public UserService(AppDbContext context)
+        public UserService(FirestoreDb firestoreDb)
         {
-            _context = context;
+            _firestoreDb = firestoreDb;
         }
 
         public async Task<User> CreateAsync(RegisterDto dto)
@@ -26,9 +28,10 @@ namespace API.Services
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
-            // ... (lógica de salvar no contexto)
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            
+            CollectionReference collectionRef = _firestoreDb.Collection(CollectionName);
+            DocumentReference docRef = await collectionRef.AddAsync(user);
+            user.Id = docRef.Id;
             return user;
         }
         public async Task<User> CreateAsync(UserCreateDto dto)
@@ -40,74 +43,99 @@ namespace API.Services
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            var docRef = await _firestoreDb.Collection(CollectionName).AddAsync(user);
+            user.Id = docRef.Id;
             return user;
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(string id)
         {
-            var user = await _context.Users.FindAsync(id);
-            if (user != null)
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot userRef = await docRef.GetSnapshotAsync();
+
+            if(!userRef.Exists)
             {
-                _context.Users.Remove(user);
-                await _context.SaveChangesAsync();
-                return true;
+                return false;
             }
-            return false;
+
+            await docRef.DeleteAsync();
+            return true;
+
+
         }
 
         public async Task<List<UserResponseDto>> GetAllAsync()
         {
-            return await _context.Users
-                .Select(user => new UserResponseDto
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    Email = user.Email
-                })
-                .ToListAsync();
+            Query query = _firestoreDb.Collection(CollectionName);
+            QuerySnapshot querySnapshot = await query.GetSnapshotAsync();
+
+            return querySnapshot.Documents.Select(doc => new UserResponseDto
+            {
+                Id = doc.Id,
+                Username = doc.GetValue<string>("Username"),
+                Email = doc.GetValue<string>("Email")
+            }).ToList();
         }
 
-        public async Task<UserResponseDto?> GetByIdAsync(int id)
+        public async Task<UserResponseDto?> GetByIdAsync(string id)
         {
-            var user = await _context.Users.FindAsync(id);
-
-            if(user == null)
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot docSnapshot = await docRef.GetSnapshotAsync();
+            if(!docSnapshot.Exists)
             {
                 return null;
             }
+
             return new UserResponseDto
             {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email
+                Id = docSnapshot.Id,
+                Username = docSnapshot.GetValue<string>("Username"),
+                Email = docSnapshot.GetValue<string>("Email")
             };
+
         }
 
-        public async Task<UserResponseDto?> UpdateAsync(int id, UserUpdateDto dto)
+        public async Task<UserResponseDto?> UpdateAsync(string id, UserUpdateDto dto)
         {
-            var user = _context.Users.Find(id);
-            if (user == null)
+            DocumentReference docRef = _firestoreDb.Collection(CollectionName).Document(id);
+            DocumentSnapshot docSnapshot = await docRef.GetSnapshotAsync();
+            if(!docSnapshot.Exists)
             {
                 return null;
             }
-            user.Username = dto.Username;
-            user.Email = dto.Email;
-            await _context.SaveChangesAsync();
 
+            Dictionary<string, object> updates = new Dictionary<string, object>
+            {
+                { "Username", dto.Username },
+                { "Email", dto.Email }
+            };
+
+            await docRef.UpdateAsync(updates);
             return new UserResponseDto
             {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email
+                Id = docSnapshot.Id,
+                Username = dto.Username,
+                Email = dto.Email
             };
         }
 
         public async Task<User?> GetByEmailAsync(string email)
         {
-            return await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
+            Query query = _firestoreDb.Collection(CollectionName).WhereEqualTo("Email", email);
+            QuerySnapshot snapshot = await query.GetSnapshotAsync();
+
+            DocumentSnapshot? userDoc = snapshot.Documents.FirstOrDefault();
+
+            if (userDoc == null) return null;
+
+            // Mapeando manualmente para o objeto User (usado no Login/Auth)
+            return new User
+            {
+                Id = userDoc.Id,
+                Username = userDoc.GetValue<string>("Username"),
+                Email = userDoc.GetValue<string>("Email"),
+                PasswordHash = userDoc.GetValue<string>("PasswordHash")
+            };
         }
     }
 }

@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Killu\\source\\repos\\API\\API\\API.csproj": {}
+    "C:\\Users\\u00613\\OneDrive - BRB CORRETORA DE SEGUROS\\Área de Trabalho\\priv\\API.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Killu\\source\\repos\\API\\API\\API.csproj": {
+    "C:\\Users\\u00613\\OneDrive - BRB CORRETORA DE SEGUROS\\Área de Trabalho\\priv\\API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Killu\\source\\repos\\API\\API\\API.csproj",
+        "projectUniqueName": "C:\\Users\\u00613\\OneDrive - BRB CORRETORA DE SEGUROS\\Área de Trabalho\\priv\\API.csproj",
         "projectName": "API",
-        "projectPath": "C:\\Users\\Killu\\source\\repos\\API\\API\\API.csproj",
-        "packagesPath": "C:\\Users\\Killu\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Killu\\source\\repos\\API\\API\\obj\\",
+        "projectPath": "C:\\Users\\u00613\\OneDrive - BRB CORRETORA DE SEGUROS\\Área de Trabalho\\priv\\API.csproj",
+        "packagesPath": "C:\\Users\\u00613\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\u00613\\OneDrive - BRB CORRETORA DE SEGUROS\\Área de Trabalho\\priv\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\Killu\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\u00613\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -44,7 +44,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net8.0": {
@@ -61,6 +61,10 @@
             "FluentValidation.DependencyInjectionExtensions": {
               "target": "Package",
               "version": "[12.1.0, )"
+            },
+            "Google.Cloud.Firestore": {
+              "target": "Package",
+              "version": "[4.1.0, )"
             },
             "Microsoft.AspNetCore.Authentication.JwtBearer": {
               "target": "Package",
@@ -110,7 +114,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.307/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
