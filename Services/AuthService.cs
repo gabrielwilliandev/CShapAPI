@@ -39,8 +39,8 @@ public class AuthService : IAuthService
         return new UserResponseDto
         {
             Id = createdUser.Id,
-            Username = createdUser.Username,
-            Email = createdUser.Email
+            Username = createdUser.Username!,
+            Email = createdUser.Email!
         };
     }
 }

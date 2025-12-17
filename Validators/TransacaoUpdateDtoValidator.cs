@@ -1,13 +1,14 @@
-﻿using API.Data;
+﻿
 using API.DTOs;
 using FluentValidation;
+using Google.Cloud.Firestore;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Validators
 {
     public class TransacaoUpdateDtoValidator : AbstractValidator<TransacaoUpdateDto>
     {
-        public TransacaoUpdateDtoValidator(AppDbContext context)
+        public TransacaoUpdateDtoValidator(FirestoreDb firestore)
         {
             RuleFor(x => x.Description)
             .NotEmpty().WithMessage("A descrição é obrigatória.")
@@ -27,12 +28,17 @@ namespace API.Validators
                 .WithMessage("O tipo deve ser 'Entrada' ou 'Saída'.");
 
             RuleFor(x => x.CategoryId)
-                .GreaterThan(0).WithMessage("A categoria é obrigatória.");
+                .NotEmpty().WithMessage("A categoria é obrigatória.");
             RuleFor(x => x.CategoryId)
                 .MustAsync(async (categoryId, cancellationToken) =>
                 {
-                    // Verifica no banco se a categoria existe
-                    return await context.Categories.AnyAsync(c => c.Id == categoryId, cancellationToken);
+                    if(string.IsNullOrEmpty(categoryId))
+                        return false;
+
+                    DocumentReference docRef = firestore.Collection("Categories").Document(categoryId);
+                    DocumentSnapshot categorySnapshot = await docRef.GetSnapshotAsync();
+
+                    return categorySnapshot.Exists;
                 })
                 .WithMessage("A categoria informada não existe.");
         }

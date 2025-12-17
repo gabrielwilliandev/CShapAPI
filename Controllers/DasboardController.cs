@@ -17,11 +17,11 @@ namespace API.Controllers
             _transacaoService = transacaoService;
         }
 
-        private int GetUserId()
+        private string GetUserId()
         {
             var idClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (idClaim == null) throw new UnauthorizedAccessException("Token inválido.");
-            return int.Parse(idClaim.Value);
+            return idClaim.Value;
         }
 
         [HttpGet]

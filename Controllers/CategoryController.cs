@@ -31,7 +31,7 @@ namespace API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(string id)
         {
             var category = await _categoryService.GetByIdAsync(id);
             if (category == null)
@@ -56,7 +56,7 @@ namespace API.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, CategoryUpdateDto dto)
+        public async Task<IActionResult> Update(string id, CategoryUpdateDto dto)
         {
             var validationResult = await _updateValidator.ValidateAsync(dto);
             if (!validationResult.IsValid)
@@ -73,7 +73,7 @@ namespace API.Controllers
         }
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(string id)
         {
             var deleted = await _categoryService.DeleteAsync(id);
             if(!deleted)

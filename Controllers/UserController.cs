@@ -34,7 +34,7 @@ namespace API.Controllers
 
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin")]
-        public async  Task<IActionResult> GetById(int id)
+        public async  Task<IActionResult> GetById(string id)
         {
             var user = await _userService.GetByIdAsync(id);
             if (user == null) return NotFound(new {message = "Usuário não encontrado."});
@@ -64,7 +64,7 @@ namespace API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, response);
         }
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UserUpdateDto dto)
+        public async Task<IActionResult> Update(string id, UserUpdateDto dto)
         {
             var validationResult = await _updateValidator.ValidateAsync(dto);
             if (!validationResult.IsValid)
@@ -76,7 +76,7 @@ namespace API.Controllers
             return Ok(updatedUser);
         }
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(string id)
         {
             var deleted = await _userService.DeleteAsync(id);
             if (!deleted) return NotFound(new {message = "Usuário não encontrado."});

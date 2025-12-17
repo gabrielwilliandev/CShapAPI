@@ -26,14 +26,14 @@ namespace API.Controllers
             _updateValidator = updateValidator; 
         }
 
-        private int GetUserId()
+        private string GetUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
             {
                 throw new Exception("Token inválido.");
             }
-            return int.Parse(userIdClaim.Value);
+            return userIdClaim.Value;
         }
 
         [HttpGet]
@@ -48,9 +48,9 @@ namespace API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(string id)
         {
-            int userId = GetUserId();
+            string userId = GetUserId();
             var transacao = await _transacaoService.GetByIdAsync(id, userId);
 
             if (transacao == null) return NotFound(new { Message = "Transação não encontrada." });
@@ -72,7 +72,7 @@ namespace API.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, TransacaoUpdateDto dto)
+        public async Task<IActionResult> Update(string id, TransacaoUpdateDto dto)
         {
             var validationResult = await _updateValidator.ValidateAsync(dto);
             if (!validationResult.IsValid)
@@ -88,7 +88,7 @@ namespace API.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(string id)
         {
             var userId = GetUserId();
             var deleted = await _transacaoService.DeleteAsync(id, userId);
