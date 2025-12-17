@@ -1,71 +1,56 @@
-app.controller('AdminCtrl', function ($scope, $http) {
+app.controller('AdminCtrl', function ($scope, $http, API_URL) {
+
     // Aba inicial
-    $scope.activeTab = 'categorias';
+    $scope.activeTab = 'transactions';
+
+    $scope.setActiveTab = function (tab) {
+        $scope.activeTab = tab;
+
+        if (tab === 'transactions') loadTransactions();
+        if (tab === 'users') loadUsers();
+        if (tab === 'categories') loadCategories();
+    };
 
     // Dados
-    $scope.categorias = [];
-    $scope.usuarios = [];
-    $scope.todasTransacoes = [];
-    $scope.novaCat = {};
+    $scope.globalTransactions = [];
+    $scope.users = [];
+    $scope.categories = [];
+    $scope.newCategoryName = "";
 
-    // --- FUNÇÕES DE CATEGORIA ---
-    $scope.loadCategorias = function () {
-        $http.get(API_URL + '/category').then(function (res) {
-            $scope.categorias = res.data;
-        });
-    };
+    function loadTransactions() {
+        $http.get(API_URL + '/transacao/admin/all')
+            .then(res => $scope.globalTransactions = res.data);
+    }
 
-    $scope.criarCategoria = function () {
-        $http.post(API_URL + '/category', $scope.novaCat)
-            .then(function (res) {
-                alert("Categoria criada!");
-                $scope.novaCat = {};
-                $scope.loadCategorias();
-            }, function (err) {
-                alert("Erro ao criar: " + JSON.stringify(err.data));
+    function loadUsers() {
+        $http.get(API_URL + '/user')
+            .then(res => $scope.users = res.data);
+    }
+
+    function loadCategories() {
+        $http.get(API_URL + '/category')
+            .then(res => $scope.categories = res.data);
+    }
+
+    $scope.createCategory = function () {
+        if (!$scope.newCategoryName) return;
+
+        $http.post(API_URL + '/category', { name: $scope.newCategoryName })
+            .then(() => {
+                $scope.newCategoryName = "";
+                loadCategories();
             });
     };
 
-    $scope.deletarCategoria = function (id) {
-        if (confirm("Tem certeza que deseja excluir esta categoria?")) {
-            $http.delete(API_URL + '/category/' + id)
-                .then(function () {
-                    $scope.loadCategorias();
-                }, function (err) {
-                    alert("Erro: Categoria pode estar em uso.");
-                });
-        }
+    $scope.deleteCategory = function (id) {
+        if (!confirm("Deseja excluir?")) return;
+
+        $http.delete(API_URL + '/category/' + id)
+            .then(loadCategories);
     };
 
-    $scope.atualizarCategoria = function (cat) {
-        $http.put(API_URL + '/category/' + cat.id, { Name: cat.name })
-            .then(function () {
-                cat.editing = false;
-                alert("Atualizado!");
-            }, function (err) {
-                alert("Erro ao atualizar.");
-            });
-    };
-
-    // --- FUNÇÕES DE USUÁRIO ---
-    $scope.loadUsuarios = function () {
-        $http.get(API_URL + '/user').then(function (res) {
-            $scope.usuarios = res.data;
-        });
-    };
-
-    // --- FUNÇÕES DE TRANSAÇÕES GLOBAIS ---
-    $scope.loadTodasTransacoes = function () {
-        // Chama o endpoint novo que criamos no Passo 1
-        $http.get(API_URL + '/transacao/admin/all').then(function (res) {
-            $scope.todasTransacoes = res.data;
-        }, function (err) {
-            console.error(err);
-        });
-    };
-
-    // Inicialização: Carrega tudo ao abrir a página
-    $scope.loadCategorias();
-    $scope.loadUsuarios();
-    $scope.loadTodasTransacoes();
+    // Inicialização
+    loadTransactions();
+    loadUsers();
+    loadCategories();
 });

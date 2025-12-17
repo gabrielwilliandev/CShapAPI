@@ -1,37 +1,39 @@
-﻿<div class="container mt-4" ng-controller="AdminCtrl">
-    
+﻿<div class="container mt-4">
+
     <h2 class="mb-4">💻 Painel Administrativo</h2>
 
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
-            <a class="nav-link" 
-               ng-class="{active: activeTab === 'transactions'}" 
+            <a class="nav-link"
+               ng-class="{active: activeTab === 'transactions'}"
                ng-click="setActiveTab('transactions')">
                 Todas Transações
             </a>
         </li>
+
         <li class="nav-item">
-            <a class="nav-link" 
-               ng-class="{active: activeTab === 'users'}" 
+            <a class="nav-link"
+               ng-class="{active: activeTab === 'users'}"
                ng-click="setActiveTab('users')">
-                Usuários Cadastrados
+                Usuários
             </a>
         </li>
+
         <li class="nav-item">
-            <a class="nav-link" 
-               ng-class="{active: activeTab === 'categories'}" 
+            <a class="nav-link"
+               ng-class="{active: activeTab === 'categories'}"
                ng-click="setActiveTab('categories')">
-                Gerenciar Categorias
+                Categorias
             </a>
         </li>
     </ul>
 
+    <!-- TRANSAÇÕES -->
     <div ng-if="activeTab === 'transactions'">
-        <h3>Todas as Transações (Global)</h3>
+        <h4>Todas as Transações</h4>
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>Descrição</th>
                     <th>Valor</th>
                     <th>Usuário</th>
@@ -41,75 +43,47 @@
             </thead>
             <tbody>
                 <tr ng-repeat="t in globalTransactions">
-                    <td>{{t.id}}</td>
                     <td>{{t.description}}</td>
-                    <td ng-class="{'text-success': t.type === 'Entrada', 'text-danger': t.type === 'Saída'}">
-                        {{t.amount | currency: 'R$'}}
-                    </td>
+                    <td>{{t.amount | currency:'R$ '}}</td>
                     <td>{{t.userName}}</td>
                     <td>{{t.categoryName}}</td>
-                    <td>{{t.date | date: 'dd/MM/yyyy'}}</td>
+                    <td>{{t.date | date:'dd/MM/yyyy'}}</td>
                 </tr>
             </tbody>
         </table>
-        <p ng-if="globalTransactions.length === 0">Nenhuma transação encontrada.</p>
     </div>
 
+    <!-- USUÁRIOS -->
     <div ng-if="activeTab === 'users'">
-        <h3>Usuários Cadastrados</h3>
+        <h4>Usuários</h4>
         <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr ng-repeat="u in users">
-                    <td>{{u.id}}</td>
-                    <td>{{u.username}}</td>
-                    <td>{{u.email}}</td>
-                </tr>
-            </tbody>
+            <tr ng-repeat="u in users">
+                <td>{{u.username}}</td>
+                <td>{{u.email}}</td>
+            </tr>
         </table>
-        <p ng-if="users.length === 0">Nenhum usuário cadastrado encontrado.</p>
     </div>
-    
+
+    <!-- CATEGORIAS -->
     <div ng-if="activeTab === 'categories'">
-        <h3>Gerenciar Categorias</h3>
-        
-        <div class="mb-4 p-3 border rounded">
-            <h5>Criar Nova Categoria</h5>
-            <div class="input-group">
-                <input type="text" class="form-control" ng-model="newCategoryName" placeholder="Nome da Categoria">
-                <button class="btn btn-primary" ng-click="createCategory()">
-                    <i class="fas fa-plus"></i> Adicionar
-                </button>
-            </div>
+        <h4>Categorias</h4>
+
+        <div class="input-group mb-3">
+            <input class="form-control" ng-model="newCategoryName" placeholder="Nova categoria">
+            <button class="btn btn-primary" ng-click="createCategory()">Adicionar</button>
         </div>
 
         <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr ng-repeat="c in categories">
-                    <td>{{c.id}}</td>
-                    <td>{{c.name}}</td>
-                    <td>
-                        <button class="btn btn-sm btn-danger" ng-click="deleteCategory(c.id)">
-                            <i class="fas fa-trash"></i> Deletar
-                        </button>
-                    </td>
-                </tr>
-            </tbody>
+            <tr ng-repeat="c in categories">
+                <td>{{c.name}}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm"
+                            ng-click="deleteCategory(c.id)">
+                        Excluir
+                    </button>
+                </td>
+            </tr>
         </table>
-        <p ng-if="categories.length === 0">Nenhuma categoria encontrada.</p>
     </div>
 
 </div>

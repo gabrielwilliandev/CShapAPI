@@ -6,7 +6,7 @@ namespace API.Models
     public class Category
     {
         [FirestoreProperty]
-        public int Id { get; set; }
+        public string Id { get; set; }
 
         [FirestoreProperty]
         public string Name { get; set; }

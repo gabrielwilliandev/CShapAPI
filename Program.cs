@@ -4,27 +4,41 @@ using API.Validators;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json.Serialization;
+using Google.Cloud.Firestore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. CONFIGURAÇÕES DE JWT
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-var secretKey = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+var secretKey = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Key não configurada."));
 
-// Add services to the container.
+builder.Services.Configure<JwtOptions>(jwtSettings);
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// 2. REGISTRO DO FIRESTORE (Essencial para os Validators e Services)
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    string projectId = config["FireBase:ProjectId"] ?? "dbteste-961d6";
+    return FirestoreDb.Create(projectId);
+});
+
+// 3. CONTROLLERS COM PROTEÇÃO CONTRA LOOP INFINITO
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Evita erro de ciclo de referência entre User -> Transacao -> User
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 
+// 4. CONFIGURAÇÃO DO SWAGGER COM SUPORTE A TOKEN
 builder.Services.AddSwaggerGen(c =>
 {
-c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-{
-    Title = "API Financeira",
-    Version = "v1"
-});
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "API Financeira", Version = "v1" });
 
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
@@ -36,86 +50,67 @@ c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
         Description = "Digite: Bearer {seu token JWT}"
     });
 
-    // Exige autenticação para endpoints protegidos
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
             new Microsoft.OpenApi.Models.OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
-                {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(secretKey)
-    };
-});
-
-builder.Services.Configure<JwtOptions>(
-    builder.Configuration.GetSection("Jwt")
-);
-
-builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<FireStoreService>();
-
-
-
-
+// 5. INJEÇÃO DE DEPENDÊNCIA DOS SERVIÇOS
 builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITransacaoService, TransacaoService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
+// 6. REGISTRO AUTOMÁTICO DE TODOS OS VALIDADORES
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+builder.Services.AddFluentValidationAutoValidation();
 
-builder.Services.AddValidatorsFromAssemblyContaining<CategoryCreateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<CategoryUpdateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<TransacaoCreateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<TransacaoUpdateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<UserCreateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<UserUpdateDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<LoginDtoValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<RegisterDtoValidator>();
+// 7. AUTENTICAÇÃO E AUTORIZAÇÃO
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidAudience = jwtSettings["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(secretKey)
+        };
+    });
 
+builder.Services.AddAuthorization();
 
+// 8. CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// CONFIGURAÇÃO DO PIPELINE
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "API Financeira v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseHttpsRedirection();
@@ -123,6 +118,7 @@ app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
